@@ -30,8 +30,40 @@ One gap was found during AI review of the skeleton: `Scheduler.build_daily_plan(
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+**Tradeoff: greedy urgency-first scheduling vs. optimal packing**
+
+The scheduler sorts all tasks by urgency score (priority × 10 + medication bonus + overdue
+penalty) and then fills the owner's time budget greedily — highest score first, no
+backtracking. This means it can miss a better combination. For example, if the budget is
+90 minutes and the top-scored task takes 85 minutes, only 5 minutes remain and several
+smaller tasks get skipped, even though swapping in two 40-minute tasks would use the same
+budget and serve more needs.
+
+A true optimal solution would require evaluating all subsets (knapsack problem), which
+is NP-hard and overkill for a daily pet-care app where the task count is small and the
+owner's priorities are already encoded in the scores.
+
+This tradeoff is reasonable because:
+- Pet-care priorities (medications, overdue tasks) are well-captured by the urgency score,
+  so the greedy order is usually the right order anyway.
+- The app targets non-technical users who need a fast, deterministic result, not a
+  provably optimal one.
+- Skipped tasks are surfaced explicitly in `PlanResult.skipped_tasks`, so the owner can
+  always reschedule them manually.
+
+**AI simplification reviewed: `detect_conflicts`**
+
+The original method used manual nested index loops (`for i … for j in range(i+1, …)`) to
+generate every unique pair of `ScheduledItem` objects. When asked for a more Pythonic
+approach, the AI suggested replacing the loops with `itertools.combinations(items, 2)` and
+a list comprehension. The performance is identical (O(n²) pairs either way), but the
+intent — "check every unique pair" — is stated directly rather than implied by the index
+arithmetic. This suggestion was accepted and applied.
+
+The same pattern was *considered* but *not applied* to `warn_task_conflicts`, because that
+method's loop body builds multi-line warning strings with several intermediate variables.
+Collapsing it into a single comprehension would make each "line" of logic harder to read,
+which outweighs the brevity gain for a teaching codebase.
 
 ---
 
