@@ -4,13 +4,20 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+The initial design has six classes, each with a single clear responsibility:
+
+- **Owner** — holds identity info, a daily time budget (minutes), and a list of owned pets. It is the entry point the Scheduler queries for constraints.
+- **Pet** — holds a pet's profile (species, age, weight, medications) and owns the task list for that pet. Tasks are scoped to a pet, not to the owner directly.
+- **Task** — represents one care item (walk, feeding, medication, etc.) with a priority integer (1–5), duration in minutes, optional due time, and a medication flag. It computes its own urgency score so the Scheduler stays decoupled from that detail.
+- **ScheduledItem** — a thin wrapper that pairs a Task with a concrete start/end time and a plain-English reason string. It is produced by the Scheduler, not stored on Pet or Task.
+- **PlanResult** — collects all ScheduledItems for one day alongside tasks that were skipped (didn't fit the budget). Separates planning output from raw input data.
+- **Scheduler** — the algorithmic engine. It scores tasks, sorts them, and greedily fills the owner's time budget. It depends on Owner and Task but does not own either, keeping the data model and logic layer separate.
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+One gap was found during AI review of the skeleton: `Scheduler.build_daily_plan(owner, date)` needs to collect tasks from every pet the owner has, but `Owner` had no method for that. The Scheduler would have had to know to loop `owner.pets` and flatten each pet's `.tasks` — coupling the scheduling algorithm to the internal structure of both `Owner` and `Pet`.
+
+**Change made:** Added `Owner.get_all_tasks() -> list[Task]` as a single aggregation point. The Scheduler now calls one method instead of navigating two levels of the object graph. This means changes to how pets store tasks only require updating `Pet` and `Owner.get_all_tasks`, not the Scheduler itself.
 
 ---
 
