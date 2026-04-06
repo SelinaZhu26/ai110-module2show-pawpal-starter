@@ -194,6 +194,36 @@ excluded because they have no pinned clock position.
 
 ---
 
+## Testing PawPal+
+
+### Run the tests
+
+```bash
+python -m pytest -v
+```
+
+### What the tests cover
+
+The suite contains **34 tests** across seven areas:
+
+| Area | Tests | What's verified |
+|---|---|---|
+| Task completion | 3 | `mark_completed()` stamps a timestamp; a completed task is no longer due |
+| Pet task management | 5 | Adding/removing tasks; `pet_id` is stamped automatically |
+| **Sorting correctness** | 4 | `sort_by_time()` returns tasks in chronological order; untimed tasks go last; original list is not mutated |
+| Filtering | 5 | Filter by completion status and pet name; unknown pet returns empty list |
+| **Recurrence logic** | 6 | Completing a daily task creates a new task due the next day; weekly creates one 7 days later; `as_needed` creates nothing; time-of-day is preserved; original task is stamped done |
+| **Conflict detection** | 6 | Overlapping windows produce a warning; adjacent tasks do not; exact duplicate start times are flagged; untimed tasks are ignored; cross-pet conflicts are caught |
+| Daily plan builder | 5 | Budget is respected; medications scheduled first; empty inputs return valid empty plans; `total_minutes` matches scheduled durations |
+
+### Confidence Level
+
+**★★★★★ (5/5)**
+
+All 34 tests pass in under 0.1 s. The suite covers the three core algorithmic behaviors (sorting, recurrence, conflict detection) across normal cases, edge cases (empty inputs, adjacent tasks, cross-pet conflicts, duplicate start times), and boundary conditions (budget limits, `as_needed` frequency). Each class method has targeted tests that isolate its behavior, giving high confidence in the scheduler's reliability.
+
+---
+
 ### Relationship review
 
 - Owner to Pet is one-to-many, which matches the domain.
