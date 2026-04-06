@@ -1,6 +1,46 @@
 # PawPal+ (Module 2 Project)
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+A smart pet care scheduling app built with Python and Streamlit. PawPal+ helps busy pet owners stay consistent with pet care by generating a prioritised daily plan, detecting scheduling conflicts, and automatically re-queuing recurring tasks.
+
+---
+
+## 📸 Demo
+
+<a href="/course_images/ai110/image.png" target="_blank"><img src='/course_images/ai110/image.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
+
+---
+
+## ✨ Features
+
+### Core scheduling
+
+- **Daily plan builder** — `Scheduler.build_daily_plan()` selects tasks that are due today, scores them by urgency, and fits them into the owner's time budget. Tasks that don't fit are listed as skipped so nothing is silently dropped.
+
+- **Urgency scoring** — `Task.urgency_score()` combines task priority (1–5), a medication bonus (+30), and an overdue penalty (up to +20 based on hours past due) into a single float. The scheduler sorts descending on this score so the most critical tasks are always placed first.
+
+- **Medication-first guarantee** — medication tasks receive a large urgency bonus, ensuring they are scheduled before any lower-priority walks or enrichment activities regardless of the order they were added.
+
+### Smart algorithms
+
+- **Sorting by time** — `Scheduler.sort_by_time()` returns a new list of tasks ordered by `due_at` (earliest first). Tasks without a pinned time fall to the end via a `"99:99"` sentinel. The original list is never mutated.
+
+- **Conflict detection** — `Scheduler.warn_task_conflicts()` checks every unique pair of timed tasks for overlapping windows using the half-open interval condition (`A.start < B.end and B.start < A.end`). It returns plain-English warning strings — one per conflict — which the UI surfaces as yellow banners before the schedule is generated.
+
+- **Auto-recurrence on completion** — `Scheduler.mark_task_complete()` marks a task done and automatically creates the next occurrence:
+  - `"daily"` → due tomorrow (same time of day)
+  - `"weekly"` → due same weekday next week
+  - `"as_needed"` → no new task created
+
+- **Filtering** — `Scheduler.filter_tasks()` accepts any combination of completion status (`completed=True/False`) and pet name, returning only the tasks that match all supplied criteria.
+
+### UI
+
+- Conflict warnings appear as `st.warning` banners in both the task list and the schedule section, naming the specific tasks and their overlapping time windows.
+- The task table is sorted chronologically and can be filtered to show pending tasks only.
+- An expandable "Why this order?" section explains the scheduling reasoning for each item in plain English.
+
+---
 
 ## Scenario
 
@@ -72,7 +112,7 @@ Use this as your design baseline before writing full logic.
 - Attributes: plan_date, scheduled_items, skipped_tasks, total_minutes
 - Methods: summary(), to_dict()
 
-### Mermaid class diagram
+### Mermaid class diagram (final — matches pawpal_system.py)
 
 ```mermaid
 classDiagram
@@ -81,10 +121,12 @@ classDiagram
 		+str name
 		+int daily_time_budget_min
 		+dict preferences
-		+list pets
+		+list~Pet~ pets
 		+add_pet(pet)
 		+set_preference(key, value)
 		+get_available_minutes() int
+		+get_all_tasks() list~Task~
+		+filter_tasks(pet_name, category, completed) list~Task~
 	}
 
 	class Pet {
@@ -93,11 +135,11 @@ classDiagram
 		+str species
 		+int age_years
 		+float weight_kg
-		+list medications
-		+list tasks
+		+list~str~ medications
+		+list~Task~ tasks
 		+add_task(task)
 		+remove_task(task_id)
-		+get_tasks_for_date(date) list
+		+get_tasks_for_date(date) list~Task~
 	}
 
 	class Task {
@@ -110,9 +152,11 @@ classDiagram
 		+str frequency
 		+datetime due_at
 		+bool is_medication
+		+datetime completed_at
 		+mark_completed(timestamp)
 		+is_due(now) bool
 		+urgency_score(now) float
+		+next_due_after(after) date
 	}
 
 	class ScheduledItem {
@@ -120,30 +164,41 @@ classDiagram
 		+datetime start_time
 		+datetime end_time
 		+str reason
+		+overlaps_with(other) bool
+		+to_dict() dict
+	}
+
+	class PlanResult {
+		+date plan_date
+		+list~ScheduledItem~ scheduled_items
+		+list~Task~ skipped_tasks
+		+int total_minutes
+		+sorted_by_time() list~ScheduledItem~
+		+summary() str
+		+to_dict() dict
 	}
 
 	class Scheduler {
 		+list rules
 		+score_task(task, owner, now) float
-		+prioritize(tasks, owner, now) list
-		+build_daily_plan(owner, date) list
-		+explain_plan(plan) list
-	}
-
-	class PlanResult {
-		+date plan_date
-		+list scheduled_items
-		+list skipped_tasks
-		+int total_minutes
-		+summary() str
+		+prioritize(tasks, owner, now) list~Task~
+		+build_daily_plan(owner, date) PlanResult
+		+explain_plan(plan) list~str~
+		+sort_by_time(tasks) list~Task~
+		+filter_tasks(tasks, completed, pet_name, pets) list~Task~
+		+mark_task_complete(task, pet, timestamp) Task
+		+warn_task_conflicts(tasks, pets) list~str~
+		+detect_conflicts(items) list
 	}
 
 	Owner "1" o-- "1..*" Pet : has
-	Pet "1" o-- "0..*" Task : needs
-	Scheduler "1" ..> Owner : uses constraints
-	Scheduler "1" ..> Task : scores
-	Scheduler "1" ..> ScheduledItem : creates
+	Pet "1" o-- "0..*" Task : owns
+	Scheduler ..> Owner : reads budget
+	Scheduler ..> Task : scores and sorts
+	Scheduler ..> Pet : appends recurrence
+	Scheduler --> PlanResult : returns
 	PlanResult "1" o-- "0..*" ScheduledItem : contains
+	ScheduledItem --> Task : wraps
 ```
 
 ## Smarter Scheduling
